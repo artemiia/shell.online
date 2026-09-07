@@ -359,7 +359,7 @@ WARNING: This link could potentially be dangerous`)){let e=window.open();if(e){t
   `}function Yc(){let e=/Windows/i.test(navigator.userAgent),t=e?`irm https://shell.online/install.ps1 | iex`:`curl -fsSL https://shell.online/install | sh`,n=e?`PS>`:`$`;document.title=`Share a Live Terminal in Any Browser | shell.online`,document.documentElement.classList.add(`marketing-root`),document.body.classList.add(`marketing-body`),Nc.innerHTML=`
     <section class="marketing">
       <header class="marketing-nav">
-        <a class="wordmark" href="/" aria-label="shell.online home"><span>shell</span><i>.</i>online</a>
+        <a class="wordmark" href="/" aria-label="shell.online home"><img class="wordmark-mark" src="/shell.online/favicon.svg" alt="" width="28" height="28" decoding="async" /><span>shell</span><i>.</i>online</a>
         <nav class="marketing-links" aria-label="Main navigation">
           <a href="/shell.online/docs/">Docs</a>
           <a href="#use-cases">Use cases</a>
@@ -812,4 +812,4 @@ WARNING: This link could potentially be dangerous`)){let e=window.open();if(e){t
       <a class="home-link" href="/">Back to shell.online</a>
     </section>
   `}function $(e){let t=document.getElementById(e);if(!t)throw Error(`Missing #${e}`);return t}
-//# sourceMappingURL=main-BK6ofPTU.js.map
+//# sourceMappingURL=main-C-OKLswY.js.map
