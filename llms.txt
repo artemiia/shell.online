@@ -1,0 +1,93 @@
+# shell.online
+
+shell.online wraps a local terminal process and produces an unguessable browser link. The process remains on the local machine. Links can be interactive or server-enforced read-only.
+
+## Noninteractive installation
+
+curl -fsSL https://shell.online/install | sh
+
+Supported platforms: macOS; Windows with native ConPTY; Linux across x86, ARMv5/6/7/64, MIPS/MIPSLE/MIPS64, PPC64, RISC-V 64, s390x, and LoongArch64; FreeBSD; OpenBSD; NetBSD; DragonFly BSD; and Solaris. Every Linux release artifact executes the full Go and PTY integration suite under QEMU; Windows amd64 runs a native ConPTY suite; other artifacts are build-verified. QEMU does not reproduce vendor firmware or kernel restrictions. This includes many OpenWrt and Ubiquiti-style Linux devices. The POSIX and PowerShell installers verify SHA-256, never invoke sudo, and print PATH instructions when needed. Full matrix: https://shell.online/platforms/
+
+Windows PowerShell installation:
+
+irm https://shell.online/install.ps1 | iex
+
+Optional Homebrew installation (the tap lives in this repository):
+
+brew tap teoslayer/shell-online https://github.com/TeoSlayer/shell.online
+brew trust --tap teoslayer/shell-online
+brew install shell-online
+
+Homebrew 6 requires one-time trust for third-party taps. Tap-level trust persists across formula updates; review the repository before granting it. Older versions without `brew trust` do not require that line. After setup, use `brew install shell-online`, `brew upgrade shell-online`, or `brew uninstall shell-online`. Homebrew is not required; use the verified installer above on machines without it.
+
+The Homebrew formula builds locally: Brew fetches the checksum-pinned tagged source, installs Go as a build-only dependency when needed, runs go build, and links the result. Application modules are pinned by go.sum and resolved by Go during the build; there are no runtime package dependencies.
+
+The standalone installer uses a checksum-pinned release binary. To compile and run the tagged source outside either installation path:
+
+git clone --depth 1 --branch v0.8.1 https://github.com/TeoSlayer/shell.online.git
+cd shell.online
+go build -trimpath -ldflags="-X main.version=0.8.1" -o ./shell ./cmd/shell
+./shell --version
+
+The source-build path requires Go 1.26.8 or newer, except Go 1.27.x is intentionally unsupported on MIPS64 because of go.dev/issue/80978. Keep using ./shell or move it to a directory on PATH.
+
+Agent skill file: https://shell.online/skill
+Current release metadata: https://shell.online/downloads/release.json
+SHA-256 manifest: https://shell.online/downloads/SHA256SUMS
+
+## Agent usage
+
+Start a long-running process under shell.online:
+
+shell --json -- your-command --its-arguments
+
+For monitoring without browser input:
+
+shell --read-only --json -- your-command --its-arguments
+
+Every normal share is end-to-end encrypted automatically. When SHELL_ONLINE_E2EE_PASSWORD is unset, the CLI generates a cryptographically random eight-character base64url browser password. For sensitive or long-lived sessions, set a longer unique password before starting shell:
+
+SHELL_ONLINE_E2EE_PASSWORD='use-a-long-unique-password' shell --json -- your-command --its-arguments
+
+The URL contains only a random #salt= fragment; the CLI and browser derive the AES-256-GCM key locally with PBKDF2-HMAC-SHA256. The old --e2ee flag is accepted for compatibility but is redundant. Lost passwords cannot be recovered. Cloudflare sees authenticated ciphertext plus routing, traffic, IP, and lifecycle metadata.
+
+For deliberate compatibility or debugging only, `shell --no-e2ee <command>` disables payload E2EE. HTTPS/WSS still protects each transport hop, but Cloudflare can access terminal input and output while relaying it. This option conflicts with --e2ee, SHELL_ONLINE_E2EE_PASSWORD, and --persistent.
+
+The first stderr line is a JSON event:
+
+{"type":"session","session_id":"...","share_url":"https://shell.online/s/...#salt=...","e2ee_password":"Ab3dE7-_","read_only":false,"encrypted":true,"background":true,...}
+
+Send the complete share_url, including its fragment, and e2ee_password to the human operator through the agent's normal communication channel. For sensitive work, use separate operator-approved channels when possible. If the operator explicitly requested --no-e2ee, the event has encrypted=false and no e2ee_password; disclose that Cloudflare is then inside the content trust boundary. Prefer --read-only when the operator only needs to monitor progress. Read-only is fixed at session creation and enforced by the Worker.
+
+Inside Claude Code, use `shell --json -- claude` to hand off the current conversation. shell.online detects CLAUDE_CODE_SESSION_ID and starts `claude --resume <current-session> --fork-session` inside the shared process. The new process keeps the conversation history and workspace; the original Claude process remains open, and new messages do not synchronize between them. Report this as a conversation fork, not as adoption of the original PID.
+
+Use `shell` with no command to share a fresh default shell. Use `shell --foreground command` to mirror output and accept input locally as well as in the browser.
+
+Manage local sessions:
+
+shell help
+shell list
+shell list --json
+shell attach <session-id-or-prefix>
+shell kill <session-id-or-prefix>
+shell kill --all
+
+`shell help` prints a guided lifecycle; `shell help attach` explains local takeover and detaching.
+
+`shell attach` opens the existing PTY locally. Its terminal title keeps a Ctrl-X D to detach reminder visible even when a full-screen TUI redraws the terminal. Press Ctrl-X, release it, then press D to detach without stopping it (Ctrl-] remains a legacy alternative); the wrapper intercepts the sequence before the child process receives it. Input and output remain mirrored to browser viewers. Anonymous presence and a brief per-typist input lease prevent remote keystrokes from interleaving.
+
+Sessions close immediately when their task exits. `--auto-close 5m` or an absolute/local date adds an earlier deadline; supported duration units are ms, s, m, h, d, w, mo, and y.
+
+ROS 1 and ROS 2 processes need no plugin: source the ROS environment, then run `shell roscore`, `shell roslaunch <package> <launch-file>`, `shell ros2 run <package> <executable>`, or `shell ros2 launch <package> <launch-file>`. shell.online platform support does not expand the supported platforms of the installed ROS distribution.
+
+Native shares run in the background by default. Re-run `shell --persistent <state-file> <command>` with the same private state file to recover the same URL and password after a process or machine restart. Docker combines the same identity with `restart: unless-stopped` for automatic recovery.
+
+The repository includes a persistent Docker client. Run `docker compose up --build -d`, then `docker compose logs shell-online` for its stable E2EE URL and generated eight-character browser password. Its state and workspace live in separate named volumes; the state volume contains the browser password, host credential, and decryption key. The saved password is reused across restarts, and a conflicting configured password is refused. Create new state to rotate the password and URL. This is a client for the hosted shell.online relay, not self-hosting documentation.
+
+## Release integrity
+
+Run `shell --version` to print the installed CLI version. The installer validates the platform binary against the canonical SHA-256 manifest and prints the verified digest. The website and corresponding GitHub release expose the same version, binaries, and SHA256SUMS file.
+
+## Security model
+
+The share URL and browser password together are a bearer capability. Interactive shares grant terminal input; --read-only shares grant viewing only and reject browser input server-side. Only send access to an intended operator. There are no accounts. Every current-CLI share encrypts terminal payloads end to end. Cloudflare relays ciphertext while active and deletes ordinary session state when the task closes; an old link reports that the session no longer exists.
